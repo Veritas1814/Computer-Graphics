@@ -8,4 +8,5 @@ window\
 cube \
 Euler Camera controlled by mouse + keyboard\
 shaders to devide cube sides  \
-movement in circle and rotation on axis
+movement in circle and rotation on axis\
+Aditionak task: 3 
