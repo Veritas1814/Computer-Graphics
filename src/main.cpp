@@ -10,11 +10,12 @@
 #include <model.h>
 #include <shader.h>
 #include <stb_image.h>
-
+#include <chrono>
+using namespace std::chrono;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
-
+const unsigned int NUM_CUBES = 1000;
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
 
@@ -31,6 +32,11 @@ float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
 bool mouseCaptured = false;
+
+double totalFrameTime = 0.0;
+int frameCount = 0;
+std::vector<double> frameTimes;
+constexpr int SAMPLE_FRAMES = 100;
 
 float cubeVertices[] = {
     -0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  0.0f,0.0f,
@@ -111,7 +117,8 @@ int main() {
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { std::cerr << "Failed to init GLAD\n"; return -1; }
 
     glEnable(GL_DEPTH_TEST);
-    Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
+    Shader modelshader("shaders/model_vertex.glsl", "shaders/model_fragment.glsl");
+    Shader cubeShader("shaders/cube_vertex.glsl", "shaders/cube_fragment.glsl");
     Model myModel("../assets/lpshead/head.OBJ");
 
     unsigned int VAO, VBO;
@@ -152,56 +159,112 @@ int main() {
     unsigned int floorTexture = loadTexture("../assets/floor.jpg");
 
     std::vector<glm::vec3> cubePositions;
-    cubePositions.reserve(1000);
-    for (int i = 0; i < 1000; i++)
-        cubePositions.emplace_back((rand()%200 - 100) / 5.0f, 0.15f, (rand()%200 - 100) / 5.0f);
+    cubePositions.reserve(NUM_CUBES);
+    float scale = sqrt(NUM_CUBES) / 50.0f;
+    for (int i = 0; i < NUM_CUBES; ++i) {
+        float x = ((rand() % 200 - 100) / 5.0f) * scale;
+        float z = ((rand() % 200 - 100) / 5.0f) * scale;
+        cubePositions.emplace_back(x, 0.15f, z);
+    }
+    unsigned int instanceVBO;
+    glGenBuffers(1, &instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, cubePositions.size() * sizeof(glm::vec3), cubePositions.data(), GL_STATIC_DRAW);
+
+    glBindVertexArray(VAO);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glVertexAttribDivisor(3, 1); // tell OpenGL this is per-instance data
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
     while (!glfwWindowShouldClose(window)) {
-        float curFrame = glfwGetTime();
-        deltaTime = curFrame - lastFrame;
-        lastFrame = curFrame;
-        processInput(window);
+    float curFrame = glfwGetTime();
+    deltaTime = curFrame - lastFrame;
+    lastFrame = curFrame;
+    processInput(window);
 
-        glClearColor(0.1f,0.15f,0.2f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.1f, 0.15f, 0.2f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        shader.use();
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f),
-                                                (float)SCR_WIDTH/SCR_HEIGHT, 0.1f, 100.0f);
-        shader.setMat4("view", view);
-        shader.setMat4("projection", projection);
+    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f),
+                                            (float)SCR_WIDTH / SCR_HEIGHT, 0.1f, 100.0f);
 
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(7.0f));
-        model = glm::translate(model, glm::vec3(0.0f,0.4f,0.0f));
-        shader.setMat4("model", model);
-        myModel.Draw(shader);
+    auto frameStart = std::chrono::high_resolution_clock::now();
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        shader.setInt("texture_diffuse1", 0);
+    modelshader.use();
+    modelshader.setMat4("view", view);
+    modelshader.setMat4("projection", projection);
 
-        glBindVertexArray(VAO);
-        for (auto& pos : cubePositions) {
-            glm::mat4 cubeModel = glm::mat4(1.0f);
-            cubeModel = glm::translate(cubeModel, pos);
-            cubeModel = glm::scale(cubeModel, glm::vec3(0.3f));
-            shader.setMat4("model", cubeModel);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
-        floorShader.use();
-        floorShader.setMat4("view", view);
-        floorShader.setMat4("projection", projection);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, floorTexture);
-        floorShader.setInt("floorTexture", 0);
-        glBindVertexArray(floorVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::scale(model, glm::vec3(7.0f));
+    model = glm::translate(model, glm::vec3(0.0f, 0.4f, 0.0f));
+    modelshader.setMat4("model", model);
+    myModel.Draw(modelshader);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+    auto startInst = std::chrono::high_resolution_clock::now();
+
+    cubeShader.use();
+    cubeShader.setMat4("view", view);
+    cubeShader.setMat4("projection", projection);
+    cubeShader.setInt("texture_diffuse1", 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindVertexArray(VAO);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, NUM_CUBES);
+
+    auto endInst = std::chrono::high_resolution_clock::now();
+    auto instancedTime = std::chrono::duration<double, std::micro>(endInst - startInst).count();
+
+    auto startNonInst = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < NUM_CUBES; ++i) {
+        glm::mat4 modelMat = glm::translate(glm::mat4(1.0f), cubePositions[i]);
+        cubeShader.setMat4("model", modelMat);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
     }
+
+    auto endNonInst = std::chrono::high_resolution_clock::now();
+    auto nonInstancedTime = std::chrono::duration<double, std::micro>(endNonInst - startNonInst).count();
+
+    floorShader.use();
+    floorShader.setMat4("view", view);
+    floorShader.setMat4("projection", projection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, floorTexture);
+    floorShader.setInt("floorTexture", 0);
+    glBindVertexArray(floorVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glFinish();
+    auto frameEnd = std::chrono::high_resolution_clock::now();
+    double frameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
+
+    totalFrameTime += frameTime;
+    frameTimes.push_back(frameTime);
+    frameCount++;
+
+    if (frameCount % SAMPLE_FRAMES == 0) {
+        double avgFrameTime = totalFrameTime / SAMPLE_FRAMES;
+        double fps = 1000.0 / avgFrameTime;
+        std::cout << "Average frame time over " << SAMPLE_FRAMES
+                  << " frames: " << avgFrameTime << " ms ("
+                  << fps << " FPS)" << std::endl;
+        std::cout << "Instanced draw: " << instancedTime / 1000.0 << " ms, "
+                  << "Non-instanced draw: " << nonInstancedTime / 1000.0 << " ms" << std::endl;
+        totalFrameTime = 0.0;
+    }
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+}
+
+    std::ofstream outFile("frame_times.txt");
+    for (double t : frameTimes) outFile << t << "\n";
+    outFile.close();
+
 
     glDeleteVertexArrays(1,&VAO);
     glDeleteBuffers(1,&VBO);
