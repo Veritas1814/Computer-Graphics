@@ -74,6 +74,9 @@ FetchContent_MakeAvailable(assimp)
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/stb_image.cpp
+        src/mesh.cpp
+        src/model.cpp
+        src/shader.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

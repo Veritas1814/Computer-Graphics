@@ -7,10 +7,12 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
-#include <model.h>
-#include <shader.h>
-#include <stb_image.h>
 #include <chrono>
+#include <fstream>
+#include <cmath>
+#include <../include/model.h>
+#include <../include/shader.h>
+#include <../include/stb_image.h>
 using namespace std::chrono;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
