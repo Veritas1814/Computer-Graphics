@@ -39,9 +39,11 @@ we can see how much faster it is to use instancing and reason is quite obvious, 
 #### Additional Features
 
 ## HW3
-
+Fixed textures in hw2 and put code into .cpp files instead of .h
 #### Basic features
-
+3 light sources, directional light, point light, and spotlight\
+blinn phong lighting system\
+cleaned comments and old code
 #### Additional Features
 
 ## HW4
