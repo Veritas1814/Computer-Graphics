@@ -1,3 +1,4 @@
+#include <string>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -10,7 +11,6 @@
 #include <../include/model.h>
 #include <../include/shader.h>
 #include <../include/stb_image.h>
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
@@ -112,13 +112,26 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
-    Shader litModel("shaders/light_model_vertex.glsl", "shaders/blinn_phong.glsl");
-    Shader litCubes("shaders/light_cube_vertex.glsl", "shaders/blinn_phong.glsl");
-    Shader emissive("shaders/emissive_vert.glsl", "shaders/emissive_fragment.glsl");
-    Shader floorShader("shaders/floor_vertex.glsl", "shaders/floor_fragment.glsl");
+    Shader litModel(
+        (std::string(PROJECT_ROOT) + "shaders/light_model_vertex.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/blinn_phong.glsl").c_str()
+    );
+    Shader litCubes(
+        (std::string(PROJECT_ROOT) + "shaders/light_cube_vertex.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/blinn_phong.glsl").c_str()
+    );
+    Shader emissive(
+        (std::string(PROJECT_ROOT) + "shaders/emissive_vert.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/emissive_fragment.glsl").c_str()
+    );
+    Shader floorShader(
+        (std::string(PROJECT_ROOT) + "shaders/floor_vertex.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/floor_fragment.glsl").c_str()
+    );
 
-    Model myModel("../assets/lpshead/head.OBJ");
-    Model lightSphere("../assets/sphere.obj");
+    Model myModel(std::string(PROJECT_ROOT) + "assets/lpshead/head.OBJ");
+    Model lightSphere(std::string(PROJECT_ROOT) + "assets/sphere.obj");
+
 
     unsigned int VAO, VBO, instanceVBO;
     glGenVertexArrays(1,&VAO);
@@ -151,7 +164,7 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER,0);
     glBindVertexArray(0);
 
-    unsigned int cubeTex = loadTexture("../assets/dizhak(1)(1).jpg");
+    unsigned int cubeTex = loadTexture((std::string(PROJECT_ROOT) + "assets/dizhak(1)(1).jpg").c_str());
 
     float floorVertices[] = {
         -500.0f, 0.0f, -500.0f,
@@ -170,7 +183,7 @@ int main() {
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
-    unsigned int floorTex = loadTexture("../assets/floor.jpg");
+    unsigned int floorTex = loadTexture((std::string(PROJECT_ROOT) + "assets/floor.jpg").c_str());
 
     glm::vec3 dirLightDir = glm::normalize(glm::vec3(-0.2f,-1.0f,-0.3f));
     glm::vec3 dirLightCol = glm::vec3(1.0f,0.98f,0.9f);

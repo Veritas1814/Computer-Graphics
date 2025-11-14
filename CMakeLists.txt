@@ -97,7 +97,7 @@ get_filename_component(PROJECT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
 target_compile_definitions(
         ${PROJECT_NAME}
         PRIVATE
-        PROJECT_ROOT="${PROJECT_SOURCE_DIR}"
+        PROJECT_ROOT="${PROJECT_SOURCE_DIR}/"
 )
 
 if(MSVC)
