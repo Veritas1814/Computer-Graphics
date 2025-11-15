@@ -90,31 +90,37 @@ set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(assimp)
 
 # -------------------------
-# ImGui (expected at external/imgui)
+# ImGui
 # -------------------------
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
-
-set(IMGUI_SOURCES
-        ${IMGUI_DIR}/imgui.cpp
-        ${IMGUI_DIR}/imgui_draw.cpp
-        ${IMGUI_DIR}/imgui_tables.cpp
-        ${IMGUI_DIR}/imgui_widgets.cpp
-        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.91.0
 )
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
 
-add_library(imgui STATIC ${IMGUI_SOURCES})
+    set(IMGUI_DIR ${imgui_SOURCE_DIR})
 
-target_include_directories(imgui PUBLIC
-        ${IMGUI_DIR}
-        ${IMGUI_DIR}/backends
-)
+    add_library(imgui STATIC
+            ${IMGUI_DIR}/imgui.cpp
+            ${IMGUI_DIR}/imgui_draw.cpp
+            ${IMGUI_DIR}/imgui_tables.cpp
+            ${IMGUI_DIR}/imgui_widgets.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    )
 
-# кажемо ImGui, що використовуємо GLAD як OpenGL loader
-target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+    target_include_directories(imgui PUBLIC
+            ${IMGUI_DIR}
+            ${IMGUI_DIR}/backends
+    )
 
-# для бекендів потрібні GLFW та GLAD (хедери та символи)
-target_link_libraries(imgui PUBLIC glfw glad)
+    target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+
+    target_link_libraries(imgui PUBLIC glfw glad)
+endif()
 
 # -------------------------
 # Executable
@@ -139,7 +145,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         glm::glm
         assimp
         glad
-        imgui          # <<< додаємо ImGui
+        imgui
 )
 
 get_filename_component(PROJECT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
@@ -155,5 +161,4 @@ else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# копіюємо шейдери в білд-дир
 file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
