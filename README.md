@@ -47,10 +47,24 @@ cleaned comments and old code
 #### Additional Features
 
 ## HW4
+Added absolute path using cmake for any pc since it was hard to check my homeworks 
 
 #### Basic features
-
+Added shadow rendering for directional light\
+Added comparison sampling and SW PCF\
+No PCF, No Comparison sampler\
+![1](assets/forReadme/1.png)\
+PCF, No COmparison sampler\
+![2](assets/forReadme/2.png)\
+No PCF, COmparison sampler\
+![3](assets/forReadme/3.png)\
+PCF, Comparison Sampler\
+![4](assets/forReadme/4.png)\
+Added  ImGUI\
+Added a slider there that controls bias for the shadow acne avoidance\
+Added transparent meshes
 #### Additional Features
+Added sliders to setup directional light for better use
 
 ## HW5
 

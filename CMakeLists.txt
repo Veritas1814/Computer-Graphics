@@ -12,6 +12,9 @@ endif()
 
 find_package(OpenGL REQUIRED)
 
+# -------------------------
+# GLFW
+# -------------------------
 message(STATUS "Fetching GLFW...")
 FetchContent_Declare(
         glfw
@@ -23,6 +26,9 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
+# -------------------------
+# GLAD
+# -------------------------
 message(STATUS "Fetching GLAD...")
 FetchContent_Declare(
         glad
@@ -31,6 +37,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glad)
 
+# -------------------------
+# KHR headers (EGL-Registry)
+# -------------------------
 message(STATUS "Fetching KHR headers...")
 FetchContent_Declare(
         khr
@@ -40,6 +49,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(khr)
 
+# -------------------------
+# GLM
+# -------------------------
 message(STATUS "Fetching GLM...")
 FetchContent_Declare(
         glm
@@ -48,6 +60,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+# -------------------------
+# stb
+# -------------------------
 message(STATUS "Fetching stb...")
 FetchContent_Declare(
         stb
@@ -56,6 +71,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+# -------------------------
+# Assimp
+# -------------------------
 message(STATUS "Fetching Assimp...")
 FetchContent_Declare(
         assimp
@@ -71,6 +89,36 @@ set(ASSIMP_BUILD_FBX_IMPORTER ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(assimp)
 
+# -------------------------
+# ImGui (expected at external/imgui)
+# -------------------------
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+
+set(IMGUI_SOURCES
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+add_library(imgui STATIC ${IMGUI_SOURCES})
+
+target_include_directories(imgui PUBLIC
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
+)
+
+# кажемо ImGui, що використовуємо GLAD як OpenGL loader
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+
+# для бекендів потрібні GLFW та GLAD (хедери та символи)
+target_link_libraries(imgui PUBLIC glfw glad)
+
+# -------------------------
+# Executable
+# -------------------------
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/stb_image.cpp
@@ -91,6 +139,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         glm::glm
         assimp
         glad
+        imgui          # <<< додаємо ImGui
 )
 
 get_filename_component(PROJECT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
@@ -106,4 +155,5 @@ else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# копіюємо шейдери в білд-дир
 file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})

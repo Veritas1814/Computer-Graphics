@@ -2,11 +2,12 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/assimp-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/glad-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/glfw-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/glm-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/khr-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bi/_deps/stb-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/assimp-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/glad-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/glfw-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/glm-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/khr-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/bin/_deps/stb-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/external/imgui" vcs="Git" />
   </component>
 </project>

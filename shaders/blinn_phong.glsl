@@ -1,70 +1,215 @@
 #version 330 core
+
 out vec4 FragColor;
 
-in vec3 FragPos;
-in vec3 Normal;
-in vec2 TexCoords;
+in VS_OUT {
+    vec3 FragPos;
+    vec3 Normal;
+    vec2 TexCoords;
+    vec4 FragPosLightSpace;
+} fs_in;
 
-#define NR_POINT_LIGHTS 2
-struct DirLight { vec3 direction; vec3 color; };
-struct PointLight { vec3 position; vec3 color; float constant; float linear; float quadratic; };
-struct SpotLight { vec3 position; vec3 direction; vec3 color; float cutOff; float outerCutOff; float constant; float linear; float quadratic; };
+struct DirLight {
+    vec3 direction;
+    vec3 color;
+};
 
-uniform DirLight dirLight;
-uniform PointLight pointLights[NR_POINT_LIGHTS];
-uniform SpotLight spotLight;
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float constant;
+    float linear;
+    float quadratic;
+};
 
-uniform vec3 viewPos;
-uniform int  blinn;
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+    vec3 color;
+    float constant;
+    float linear;
+    float quadratic;
+    float cutOff;
+    float outerCutOff;
+};
+
+uniform DirLight  dirLight;
+uniform PointLight pointLights[2];
+uniform SpotLight  spotLight;
+
+uniform sampler2D       texture_diffuse1;
+uniform sampler2D       texture_specular1; // не використовується, але хай буде
+uniform sampler2D       shadowMap;
+uniform sampler2DShadow shadowMapCmp;
+
+uniform vec3  viewPos;
+uniform int   blinn;
 uniform float shininess;
-uniform vec3 specularColor;
+uniform vec3  specularColor;
 
-uniform sampler2D texture_diffuse1;
+uniform bool  usePCF;
+uniform bool  useComparisonSampler;
+uniform float shadowBias;
+uniform float materialAlpha;
 
-vec3 blinnSpec(vec3 N, vec3 L, vec3 V, float sh){
-    vec3 H = normalize(L+V);
-    return pow(max(dot(N,H),0.0), sh) * specularColor;
-}
-vec3 phongSpec(vec3 N, vec3 L, vec3 V, float sh){
-    vec3 R = reflect(-L,N);
-    return pow(max(dot(R,V),0.0), sh) * specularColor;
-}
-vec3 calcDir(DirLight Lgt, vec3 N, vec3 V, vec3 albedo){
-    vec3 L = normalize(-Lgt.direction);
-    float diff = max(dot(N,L),0.0);
-    vec3 spec = (blinn==1)? blinnSpec(N,L,V,shininess) : phongSpec(N,L,V,shininess);
-    return (albedo*diff + spec) * Lgt.color;
-}
-vec3 calcPoint(PointLight Lgt, vec3 N, vec3 V, vec3 albedo){
-    vec3 L = normalize(Lgt.position - FragPos);
-    float diff = max(dot(N,L),0.0);
-    vec3 spec = (blinn==1)? blinnSpec(N,L,V,shininess) : phongSpec(N,L,V,shininess);
-    float d = length(Lgt.position - FragPos);
-    float att = 1.0/(Lgt.constant + Lgt.linear*d + Lgt.quadratic*d*d);
-    return (albedo*diff + spec) * Lgt.color * att;
-}
-vec3 calcSpot(SpotLight Lgt, vec3 N, vec3 V, vec3 albedo){
-    vec3 L = normalize(Lgt.position - FragPos);
-    float theta = dot(L, normalize(-Lgt.direction));
-    float eps = Lgt.cutOff - Lgt.outerCutOff;
-    float falloff = clamp((theta - Lgt.outerCutOff)/eps, 0.0, 1.0);
-    float diff = max(dot(N,L),0.0);
-    vec3 spec = (blinn==1)? blinnSpec(N,L,V,shininess) : phongSpec(N,L,V,shininess);
-    float d = length(Lgt.position - FragPos);
-    float att = 1.0/(Lgt.constant + Lgt.linear*d + Lgt.quadratic*d*d);
-    return (albedo*diff + spec) * Lgt.color * att * falloff;
+// ---------- shadow ----------
+float computeShadowVisibility(vec4 fragPosLightSpace, vec3 normal)
+{
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // поза shadow map
+    if (projCoords.z > 1.0 ||
+        projCoords.x < 0.0 || projCoords.x > 1.0 ||
+        projCoords.y < 0.0 || projCoords.y > 1.0)
+        return 1.0;
+
+    float cosTheta = max(dot(normalize(normal), -normalize(dirLight.direction)), 0.0);
+    float bias = shadowBias * max(0.05, 1.0 - cosTheta);
+    float currentDepth = projCoords.z - bias;
+
+    // без PCF
+    if (!usePCF) {
+        if (!useComparisonSampler) {
+            float closestDepth = texture(shadowMap, projCoords.xy).r;
+            return (currentDepth > closestDepth) ? 0.0 : 1.0;
+        } else {
+            return texture(shadowMapCmp, vec3(projCoords.xy, currentDepth));
+        }
+    }
+
+    // з PCF
+    float result = 0.0;
+    int samples = 0;
+
+    ivec2 texSize;
+    if (useComparisonSampler)
+        texSize = textureSize(shadowMapCmp, 0);
+    else
+        texSize = textureSize(shadowMap, 0);
+
+    vec2 texelSize = 1.0 / vec2(texSize);
+
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            vec2 offset = vec2(x, y) * texelSize;
+            if (!useComparisonSampler) {
+                float closestDepth = texture(shadowMap, projCoords.xy + offset).r;
+                result += (currentDepth > closestDepth) ? 0.0 : 1.0;
+            } else {
+                result += texture(shadowMapCmp,
+                                  vec3(projCoords.xy + offset, currentDepth));
+            }
+            ++samples;
+        }
+    }
+
+    return result / float(samples);
 }
 
-void main(){
-    vec3 albedo = texture(texture_diffuse1, TexCoords).rgb;
-    vec3 N = normalize(Normal);
-    vec3 V = normalize(viewPos - FragPos);
-    vec3 ambient = 0.05 * albedo;
+// ---------- lighting ----------
+vec3 calcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec3 albedo, float visibility)
+{
+    vec3 lightDir = normalize(-light.direction);
+    float diff = max(dot(normal, lightDir), 0.0);
 
-    vec3 color = ambient;
-    color += calcDir(dirLight, N, V, albedo);
-    for(int i=0;i<NR_POINT_LIGHTS;++i) color += calcPoint(pointLights[i], N, V, albedo);
-    color += calcSpot(spotLight, N, V, albedo);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = 0.0;
+    if (diff > 0.0) {
+        if (blinn == 1)
+            spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
+        else {
+            vec3 reflectDir = reflect(-lightDir, normal);
+            spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+        }
+    }
 
-    FragColor = vec4(color,1.0);
+    vec3 ambient  = 0.1 * albedo * light.color;
+    vec3 diffuse  = diff * albedo * light.color;
+    vec3 specular = spec * specularColor * light.color;
+
+    return ambient + visibility * (diffuse + specular);
+}
+
+vec3 calcPointLight(PointLight light, vec3 normal, vec3 fragPos,
+                    vec3 viewDir, vec3 albedo)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = 0.0;
+    if (diff > 0.0) {
+        if (blinn == 1)
+            spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
+        else {
+            vec3 reflectDir = reflect(-lightDir, normal);
+            spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+        }
+    }
+
+    float dist  = length(light.position - fragPos);
+    float atten = 1.0 / (light.constant +
+                         light.linear * dist +
+                         light.quadratic * dist * dist);
+
+    vec3 ambient  = 0.05 * albedo * light.color;
+    vec3 diffuse  = diff * albedo * light.color;
+    vec3 specular = spec * specularColor * light.color;
+
+    return (ambient + diffuse + specular) * atten;
+}
+
+vec3 calcSpotLight(SpotLight light, vec3 normal, vec3 fragPos,
+                   vec3 viewDir, vec3 albedo)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = 0.0;
+    if (diff > 0.0) {
+        if (blinn == 1)
+            spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
+        else {
+            vec3 reflectDir = reflect(-lightDir, normal);
+            spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+        }
+    }
+
+    float dist  = length(light.position - fragPos);
+    float atten = 1.0 / (light.constant +
+                         light.linear * dist +
+                         light.quadratic * dist * dist);
+
+    float theta   = dot(lightDir, normalize(-light.direction));
+    float epsilon = light.cutOff - light.outerCutOff;
+    float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+
+    vec3 ambient  = 0.05 * albedo * light.color;
+    vec3 diffuse  = diff * albedo * light.color;
+    vec3 specular = spec * specularColor * light.color;
+
+    return (ambient + diffuse + specular) * atten * intensity;
+}
+
+void main()
+{
+    vec3 albedo = texture(texture_diffuse1, fs_in.TexCoords).rgb;
+    // fallback, якщо текстури немає
+    if (albedo == vec3(0.0))
+        albedo = vec3(1.0);
+
+    vec3 normal  = normalize(fs_in.Normal);
+    vec3 viewDir = normalize(viewPos - fs_in.FragPos);
+
+    float dirVisibility = computeShadowVisibility(fs_in.FragPosLightSpace, normal);
+
+    vec3 color = vec3(0.0);
+    color += calcDirLight(dirLight, normal, viewDir, albedo, dirVisibility);
+    color += calcPointLight(pointLights[0], normal, fs_in.FragPos, viewDir, albedo);
+    color += calcPointLight(pointLights[1], normal, fs_in.FragPos, viewDir, albedo);
+    color += calcSpotLight(spotLight,  normal, fs_in.FragPos, viewDir, albedo);
+
+    FragColor = vec4(color, materialAlpha);
 }
