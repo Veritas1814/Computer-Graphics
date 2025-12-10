@@ -14,11 +14,11 @@ struct DirLight {
 };
 
 uniform DirLight dirLight;
-uniform sampler2D       floorTexture;
 uniform sampler2D       shadowMap;
 uniform sampler2DShadow shadowMapCmp;
 
 uniform vec3  viewPos;
+uniform vec3  tintColor;
 uniform bool  usePCF;
 uniform bool  useComparisonSampler;
 uniform float shadowBias;
@@ -76,16 +76,16 @@ float computeShadowVisibility(vec4 fragPosLightSpace, vec3 normal)
 
 void main()
 {
-    vec3 albedo = texture(floorTexture, fs_in.TexCoords).rgb;
-    vec3 normal = normalize(fs_in.Normal);
+    vec3 normal   = normalize(fs_in.Normal);
     vec3 lightDir = normalize(-dirLight.direction);
 
-    float diff = max(dot(normal, lightDir), 0.0);
-    float dirVis = computeShadowVisibility(fs_in.FragPosLightSpace, normal);
+    float diff    = max(dot(normal, lightDir), 0.0);
+    float dirVis  = computeShadowVisibility(fs_in.FragPosLightSpace, normal);
 
-    vec3 ambient  = 0.2 * albedo * dirLight.color;
-    vec3 diffuse  = diff * albedo * dirLight.color;
+    vec3 ambient  = 0.1 * tintColor * dirLight.color;
+    vec3 diffuse  = diff * tintColor * dirLight.color;
 
     vec3 color = ambient + dirVis * diffuse;
     FragColor = vec4(color, materialAlpha);
 }
+c
