@@ -44,8 +44,6 @@ bool mouseCaptured = false;
 bool enableDirLight    = true;
 bool enablePointLights = true;
 bool enableSpotLight   = false;
-bool enableOutline     = true;
-float outlineWidth     = 0.015f;
 float cubeVertices[] = {
     -0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  0.0f,0.0f,
      0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  1.0f,0.0f,
@@ -176,10 +174,6 @@ int main() {
     Shader transparentShader(
         (std::string(PROJECT_ROOT) + "shaders/transparent_vertex.glsl").c_str(),
         (std::string(PROJECT_ROOT) + "shaders/transparent_fragment.glsl").c_str()
-    );
-    Shader outlineShader(
-        (std::string(PROJECT_ROOT) + "shaders/outline_vertex.glsl").c_str(),
-        (std::string(PROJECT_ROOT) + "shaders/outline_fragment.glsl").c_str()
     );
 
     Model myModel(std::string(PROJECT_ROOT) + "assets/lpshead/head.OBJ");
@@ -453,25 +447,7 @@ int main() {
 
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, depthMap);
-        if (enableOutline) {
-            glEnable(GL_CULL_FACE);
-            glCullFace(GL_FRONT);
 
-            outlineShader.use();
-            outlineShader.setMat4("view", view);
-            outlineShader.setMat4("projection", proj);
-            outlineShader.setFloat("outlineWidth", outlineWidth);
-            outlineShader.setVec3("outlineColor", glm::vec3(0.0f));
-
-            glm::mat4 M(1.0f);
-            M = glm::scale(M, glm::vec3(7.0f));
-            M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
-            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
-            outlineShader.setMat4("model", M);
-            myModel.Draw(outlineShader);
-
-            glCullFace(GL_BACK);
-        }
         setLights(litModel, view, proj, lightSpaceMatrix, 1.0f);
 
         {
