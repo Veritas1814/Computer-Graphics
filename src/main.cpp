@@ -24,8 +24,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
 
 const unsigned int NUM_CUBES  = 1000;
-const unsigned int SCR_WIDTH  = 1280;
-const unsigned int SCR_HEIGHT = 720;
+const unsigned int SCR_WIDTH  = 1920;
+const unsigned int SCR_HEIGHT = 1080;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -41,6 +41,11 @@ float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse    = true;
 bool mouseCaptured = false;
 
+bool enableDirLight    = true;
+bool enablePointLights = true;
+bool enableSpotLight   = false;
+bool enableOutline     = true;
+float outlineWidth     = 0.015f;
 float cubeVertices[] = {
     -0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  0.0f,0.0f,
      0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  1.0f,0.0f,
@@ -120,7 +125,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
-
+    bool useCellShading = true;
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT,"HW4 Shadows + Transparency",nullptr,nullptr);
     if(!window) {
         glfwTerminate();
@@ -172,6 +177,10 @@ int main() {
         (std::string(PROJECT_ROOT) + "shaders/transparent_vertex.glsl").c_str(),
         (std::string(PROJECT_ROOT) + "shaders/transparent_fragment.glsl").c_str()
     );
+    Shader outlineShader(
+        (std::string(PROJECT_ROOT) + "shaders/outline_vertex.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/outline_fragment.glsl").c_str()
+    );
 
     Model myModel(std::string(PROJECT_ROOT) + "assets/lpshead/head.OBJ");
     Model lightSphere(std::string(PROJECT_ROOT) + "assets/sphere.obj");
@@ -194,7 +203,7 @@ int main() {
 
     std::vector<glm::vec3> cubePositions;
     cubePositions.reserve(NUM_CUBES);
-    float spread = std::sqrt((float)NUM_CUBES) / 50.0f;
+    float spread = std::sqrt((float)NUM_CUBES) / 20.0f;
     for (unsigned i=0;i<NUM_CUBES;++i){
         float x = ((rand()%200-100)/5.0f)*spread;
         float z = ((rand()%200-100)/5.0f)*spread;
@@ -210,6 +219,7 @@ int main() {
     glBindVertexArray(0);
 
     unsigned int cubeTex = loadTexture((std::string(PROJECT_ROOT) + "assets/dizhak(1)(1).jpg").c_str());
+    unsigned int floorTex = loadTexture((std::string(PROJECT_ROOT) + "assets/floor.jpg").c_str());
 
     float floorVertices[] = {
         -500.0f, 0.0f, -500.0f,
@@ -228,8 +238,6 @@ int main() {
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
-
-    unsigned int floorTex = loadTexture((std::string(PROJECT_ROOT) + "assets/floor.jpg").c_str());
 
     float transparentVertices[] = {
         -0.5f, 0.0f, 0.0f,  0.0f,0.0f,
@@ -259,11 +267,11 @@ int main() {
     glm::vec3 dirLightDir = glm::normalize(glm::vec3(-0.2f,-1.0f,-0.3f));
     glm::vec3 dirLightCol = glm::vec3(1.0f,0.98f,0.9f);
 
-    float dirLightYaw   = -60.0f;  // обертання навколо Y
-    float dirLightPitch = -45.0f;  // вниз
+    float dirLightYaw   = -60.0f;
+    float dirLightPitch = -45.0f;
     glm::vec3 pointPos[2] = {
-        glm::vec3(-2.0f, 1.2f,  2.0f), // red
-        glm::vec3( 3.0f, 0.8f, -3.0f)  // blue
+        glm::vec3(-2.0f, 1.2f,  2.0f),
+        glm::vec3( 3.0f, 0.8f, -3.0f)
     };
     glm::vec3 pointCol[2] = {
         glm::vec3(1.0f,0.25f,0.25f),
@@ -297,7 +305,7 @@ int main() {
 
     bool usePCF = true;
     bool useComparisonSampler = true;
-    float shadowBias = 0.0015f;
+    float shadowBias = 0.0005f;
     float dirLightOrthoSize = 25.0f;
     float nearPlane = 1.0f;
     float farPlane  = 60.0f;
@@ -311,6 +319,7 @@ int main() {
                          float materialAlpha)
     {
         sh.use();
+        sh.setBool("cellShading", useCellShading);
         sh.setMat4("view", view);
         sh.setMat4("projection", proj);
         sh.setMat4("lightSpaceMatrix", lightSpaceMatrix);
@@ -321,12 +330,19 @@ int main() {
         sh.setVec3("specularColor", glm::vec3(0.4f));
 
         sh.setVec3("dirLight.direction", dirLightDir);
-        sh.setVec3("dirLight.color", dirLightCol);
+        if (enableDirLight)
+            sh.setVec3("dirLight.color", dirLightCol);
+        else
+            sh.setVec3("dirLight.color", glm::vec3(0.0f));
 
         for (int i=0;i<2;++i){
             std::string base = "pointLights[" + std::to_string(i) + "]";
             sh.setVec3(base + ".position",  pointPos[i]);
-            sh.setVec3(base + ".color",     pointCol[i]);
+            if (enablePointLights)
+                sh.setVec3(base + ".color", pointCol[i]);
+            else
+                sh.setVec3(base + ".color", glm::vec3(0.0f));
+
             sh.setFloat(base + ".constant", attKc);
             sh.setFloat(base + ".linear",   attKl);
             sh.setFloat(base + ".quadratic",attKq);
@@ -334,7 +350,11 @@ int main() {
 
         sh.setVec3("spotLight.position",  cameraPos);
         sh.setVec3("spotLight.direction", cameraFront);
-        sh.setVec3("spotLight.color", glm::vec3(1.0f));
+        if (enableSpotLight)
+            sh.setVec3("spotLight.color", glm::vec3(1.0f));
+        else
+            sh.setVec3("spotLight.color", glm::vec3(0.0f));
+
         sh.setFloat("spotLight.cutOff", glm::cos(glm::radians(12.5f)));
         sh.setFloat("spotLight.outerCutOff", glm::cos(glm::radians(17.5f)));
         sh.setFloat("spotLight.constant", attKc);
@@ -390,7 +410,10 @@ int main() {
         glClear(GL_DEPTH_BUFFER_BIT);
 
         glEnable(GL_CULL_FACE);
-        glCullFace(GL_FRONT);
+        glCullFace(GL_BACK);
+
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.0f, 4.0f);
 
         shadowGeneric.use();
         shadowGeneric.setMat4("lightSpaceMatrix", lightSpaceMatrix);
@@ -399,6 +422,7 @@ int main() {
             glm::mat4 M(1.0f);
             M = glm::scale(M, glm::vec3(7.0f));
             M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
+            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
             shadowGeneric.setMat4("model", M);
             myModel.Draw(shadowGeneric);
         }
@@ -411,7 +435,6 @@ int main() {
             glBindVertexArray(0);
         }
 
-
         shadowCubes.use();
         shadowCubes.setMat4("lightSpaceMatrix", lightSpaceMatrix);
         shadowCubes.setFloat("cubeScale", cubeScale);
@@ -419,6 +442,7 @@ int main() {
         glDrawArraysInstanced(GL_TRIANGLES, 0, 36, NUM_CUBES);
         glBindVertexArray(0);
 
+        glDisable(GL_POLYGON_OFFSET_FILL);
         glDisable(GL_CULL_FACE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -429,12 +453,32 @@ int main() {
 
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, depthMap);
+        if (enableOutline) {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT);
 
+            outlineShader.use();
+            outlineShader.setMat4("view", view);
+            outlineShader.setMat4("projection", proj);
+            outlineShader.setFloat("outlineWidth", outlineWidth);
+            outlineShader.setVec3("outlineColor", glm::vec3(0.0f));
+
+            glm::mat4 M(1.0f);
+            M = glm::scale(M, glm::vec3(7.0f));
+            M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
+            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+            outlineShader.setMat4("model", M);
+            myModel.Draw(outlineShader);
+
+            glCullFace(GL_BACK);
+        }
         setLights(litModel, view, proj, lightSpaceMatrix, 1.0f);
+
         {
             glm::mat4 M(1.0f);
             M = glm::scale(M, glm::vec3(7.0f));
             M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
+            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
             litModel.setMat4("model", M);
             myModel.Draw(litModel);
         }
@@ -463,13 +507,15 @@ int main() {
         emissive.use();
         emissive.setMat4("view", view);
         emissive.setMat4("projection", proj);
-        for (int i=0;i<2;++i){
-            glm::mat4 Lm(1.0f);
-            Lm = glm::translate(Lm, pointPos[i]);
-            Lm = glm::scale(Lm, glm::vec3(lightMarkerScale));
-            emissive.setMat4("model", Lm);
-            emissive.setVec3("emissiveColor", pointCol[i]);
-            lightSphere.Draw(emissive);
+        if (enablePointLights) {
+            for (int i=0;i<2;++i){
+                glm::mat4 Lm(1.0f);
+                Lm = glm::translate(Lm, pointPos[i]);
+                Lm = glm::scale(Lm, glm::vec3(lightMarkerScale));
+                emissive.setMat4("model", Lm);
+                emissive.setVec3("emissiveColor", pointCol[i]);
+                lightSphere.Draw(emissive);
+            }
         }
 
         glEnable(GL_BLEND);
@@ -505,7 +551,13 @@ int main() {
         glEnable(GL_CULL_FACE);
 
         ImGui::Begin("Shadow Settings");
-        ImGui::SliderFloat("Bias", &shadowBias, 0.0001f, 0.01f, "%.5f");
+        ImGui::Checkbox("Enable Cell Shading", &useCellShading);
+        ImGui::Text("Light Controls:");
+        ImGui::Checkbox("Dir Light (Sun)", &enableDirLight);
+        ImGui::Checkbox("Point Lights", &enablePointLights);
+        ImGui::Checkbox("Spot Light (Cam)", &enableSpotLight);
+        ImGui::Separator();
+        ImGui::SliderFloat("Bias", &shadowBias, 0.00001f, 0.005f, "%.5f");
         ImGui::Checkbox("Use PCF (SW)", &usePCF);
         ImGui::Checkbox("Use Comparison Sampler", &useComparisonSampler);
         ImGui::SliderFloat("DirLight Ortho Size", &dirLightOrthoSize, 5.0f, 80.0f);
@@ -583,6 +635,22 @@ void processInput(GLFWwindow* window) {
     } else if(glfwGetMouseButton(window,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_RELEASE && mouseCaptured){
         mouseCaptured=false;
         glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        enableDirLight = true;
+        enablePointLights = true;
+        enableSpotLight = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        enableDirLight = true;
+        enablePointLights = true;
+        enableSpotLight = false;
+    }
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        enableDirLight = true;
+        enablePointLights = false;
+        enableSpotLight = false;
     }
 
     float speed = 4.0f * deltaTime;
