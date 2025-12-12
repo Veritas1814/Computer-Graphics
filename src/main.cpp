@@ -40,7 +40,9 @@ float lastX = SCR_WIDTH  / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse    = true;
 bool mouseCaptured = false;
-
+float outlineWidth = 0.005f;
+bool enableOutline = true;
+glm::vec3 outlineColor = glm::vec3(0.0f, 0.0f, 0.0f);
 bool enableDirLight    = true;
 bool enablePointLights = true;
 bool enableSpotLight   = false;
@@ -138,6 +140,8 @@ int main() {
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
     glFrontFace(GL_CCW);
 
     IMGUI_CHECKVERSION();
@@ -174,6 +178,14 @@ int main() {
     Shader transparentShader(
         (std::string(PROJECT_ROOT) + "shaders/transparent_vertex.glsl").c_str(),
         (std::string(PROJECT_ROOT) + "shaders/transparent_fragment.glsl").c_str()
+    );
+    Shader outlineModelShader(
+    (std::string(PROJECT_ROOT) + "shaders/outline_model_vert.glsl").c_str(),
+    (std::string(PROJECT_ROOT) + "shaders/outline_frag.glsl").c_str()
+);
+    Shader outlineCubeShader(
+        (std::string(PROJECT_ROOT) + "shaders/outline_cube_vert.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/outline_frag.glsl").c_str()
     );
 
     Model myModel(std::string(PROJECT_ROOT) + "assets/lpshead/head.OBJ");
@@ -442,14 +454,14 @@ int main() {
 
         glViewport(0,0,SCR_WIDTH,SCR_HEIGHT);
         glClearColor(0.1f,0.15f,0.2f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         glDepthMask(GL_TRUE);
 
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, depthMap);
-
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilMask(0xFF);
         setLights(litModel, view, proj, lightSpaceMatrix, 1.0f);
-
         {
             glm::mat4 M(1.0f);
             M = glm::scale(M, glm::vec3(7.0f));
@@ -467,7 +479,41 @@ int main() {
         glBindVertexArray(cubeVAO);
         glDrawArraysInstanced(GL_TRIANGLES, 0, 36, NUM_CUBES);
         glBindVertexArray(0);
+        if (enableOutline) {
+            glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+            glStencilMask(0x00); // Disable writing to stencil
+            glEnable(GL_DEPTH_TEST);
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT);
+            outlineModelShader.use();
+            outlineModelShader.setMat4("view", view);
+            outlineModelShader.setMat4("projection", proj);
+            outlineModelShader.setFloat("outlineWidth", outlineWidth);
+            outlineModelShader.setVec3("outlineColor", outlineColor);
 
+            {
+                glm::mat4 M(1.0f);
+                M = glm::scale(M, glm::vec3(7.0f));
+                M = glm::translate(M, glm::vec3(0.0f, 0.4f, 0.0f));
+                outlineModelShader.setMat4("model", M);
+                myModel.Draw(outlineModelShader);
+            }
+            glCullFace(GL_BACK);
+            outlineCubeShader.use();
+            outlineCubeShader.setMat4("view", view);
+            outlineCubeShader.setMat4("projection", proj);
+            outlineCubeShader.setFloat("outlineWidth", outlineWidth * 20.0f);
+            outlineCubeShader.setFloat("cubeScale", cubeScale);
+            outlineCubeShader.setVec3("outlineColor", outlineColor);
+
+            glBindVertexArray(cubeVAO);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 36, NUM_CUBES);
+            glBindVertexArray(0);
+
+            glStencilMask(0xFF);
+            glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        }
+        glDisable(GL_CULL_FACE);
         setLights(floorShader, view, proj, lightSpaceMatrix, 1.0f);
         floorShader.setInt("floorTexture", 0);
         glActiveTexture(GL_TEXTURE0);
@@ -528,6 +574,9 @@ int main() {
 
         ImGui::Begin("Shadow Settings");
         ImGui::Checkbox("Enable Cell Shading", &useCellShading);
+        ImGui::Checkbox("Enable Outline", &enableOutline);
+        ImGui::SliderFloat("Outline Width", &outlineWidth, 0.001f, 0.1f);
+        ImGui::ColorEdit3("Outline Color", (float*)&outlineColor);
         ImGui::Text("Light Controls:");
         ImGui::Checkbox("Dir Light (Sun)", &enableDirLight);
         ImGui::Checkbox("Point Lights", &enablePointLights);

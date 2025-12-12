@@ -99,23 +99,23 @@ float computeShadowVisibility(vec4 fragPosLightSpace, vec3 normal)
 vec3 applyCellShading(float diff, float spec, vec3 normal, vec3 viewDir, vec3 lightColor, vec3 albedo, bool isMainLight) {
     float intensity = diff;
     float steps = 4.0;
-    float cellDiff = floor(intensity * steps) / steps;
-    cellDiff = smoothstep(cellDiff - 0.01, cellDiff + 0.01, intensity) * cellDiff;
+    float cellDiff = ceil(intensity * steps) / steps;
+    // cellDiff = smoothstep(cellDiff - 0.01, cellDiff + 0.01, intensity) * cellDiff;
 
 
-    float cellSpec = step(0.5, spec);
-
+    //float cellSpec = step(0.5, spec);
+    vec3 specular = vec3(0.0);
     vec3 rimColor = vec3(0.0);
     if (isMainLight) {
-        float rim = 1.0 - max(dot(viewDir, normal), 0.0);
-        float rimThreshold = 0.6;
-        float rimIntensity = smoothstep(rimThreshold - 0.05, rimThreshold + 0.05, rim);
-        rimColor = rimIntensity * lightColor * albedo * 0.8;
-    }
+           float rim = 1.0 - max(dot(viewDir, normal), 0.0);
+           float rimThreshold = 0.6;
+           float rimIntensity = smoothstep(rimThreshold - 0.05, rimThreshold + 0.05, rim);
+           rimColor = rimIntensity * lightColor * albedo * 0.8;
+        }
 
     vec3 ambient = 0.1 * albedo * lightColor;
     vec3 diffuse = cellDiff * albedo * lightColor;
-    vec3 specular = cellSpec * specularColor * lightColor;
+    //vec3 specular = cellSpec * specularColor * lightColor;
 
     return ambient + diffuse + specular + rimColor;
 }
