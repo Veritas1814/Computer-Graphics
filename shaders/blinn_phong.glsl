@@ -98,7 +98,7 @@ float computeShadowVisibility(vec4 fragPosLightSpace, vec3 normal)
 
 vec3 applyCellShading(float diff, float spec, vec3 normal, vec3 viewDir, vec3 lightColor, vec3 albedo, bool isMainLight) {
     float intensity = diff;
-    float steps = 4.0;
+    float steps = 3.0;
     float cellDiff = ceil(intensity * steps) / steps;
     // cellDiff = smoothstep(cellDiff - 0.01, cellDiff + 0.01, intensity) * cellDiff;
 

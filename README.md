@@ -64,10 +64,29 @@ Added  ImGUI\
 Added a slider there that controls bias for the shadow acne avoidance\
 Added transparent meshes
 #### Additional Features
-Added sliders to setup directional light for better use
+Added sliders to setup directional light for better use\
 
 ## HW5
 
 #### Basic features
+Added Exposure Tone Mapping algorithm to map HDR values to LDR screen output.\
+Added Gamma Correction (sRGB) in the final post-processing stage.\
+Added ImGui to turn on/off HDR
+
+#### Comparison
+I did compared without toon shadowing, you can see the change better without it\
+
+**No Tone Mapping** \
+High intensity lights cause color values to exceed 1.0, which are clamped to white. Details in bright areas are lost completely.
+![No Tone Mapping](assets/forReadme/NoHDR.png)
+
+**With Tone Mapping** \
+High intensity values are compressed smoothly into the visible range. Details in bright spots are preserved, and lighting looks more natural.
+![With Tone Mapping](assets/forReadme/HDR.png)
 
 #### Additional Features
+
+## Project
+
+#### Basic features
+Implemented toon shading and cell shaling

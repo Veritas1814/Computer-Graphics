@@ -22,6 +22,8 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
+unsigned int loadTexture(const char* path);
+void renderQuad();
 
 const unsigned int NUM_CUBES  = 1000;
 const unsigned int SCR_WIDTH  = 1920;
@@ -46,6 +48,11 @@ glm::vec3 outlineColor = glm::vec3(0.0f, 0.0f, 0.0f);
 bool enableDirLight    = true;
 bool enablePointLights = true;
 bool enableSpotLight   = false;
+
+// HDR Settings
+bool hdr = true;
+float exposure = 1.0f;
+
 float cubeVertices[] = {
     -0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  0.0f,0.0f,
      0.5f,-0.5f,-0.5f,  0.0f,0.0f,-1.0f,  1.0f,0.0f,
@@ -90,29 +97,6 @@ float cubeVertices[] = {
     -0.5f, 0.5f,-0.5f,  0.0f,1.0f,0.0f,   0.0f,1.0f
 };
 
-unsigned int loadTexture(const char* path) {
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
-    stbi_set_flip_vertically_on_load(true);
-    int width, height, nrChannels;
-    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
-    if (data) {
-        GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    } else {
-        std::cerr << "Failed to load texture: " << path << std::endl;
-    }
-    stbi_image_free(data);
-    return textureID;
-}
-
 struct TransparentMesh {
     glm::vec3 position;
     glm::vec3 scale;
@@ -126,7 +110,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
     bool useCellShading = true;
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT,"HW4 Shadows + Transparency",nullptr,nullptr);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT,"HW5 HDR + Gamma",nullptr,nullptr);
     if(!window) {
         glfwTerminate();
         return -1;
@@ -151,6 +135,7 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
+    // --- Shaders ---
     Shader litModel(
         (std::string(PROJECT_ROOT) + "shaders/light_model_vertex.glsl").c_str(),
         (std::string(PROJECT_ROOT) + "shaders/blinn_phong.glsl").c_str()
@@ -180,17 +165,24 @@ int main() {
         (std::string(PROJECT_ROOT) + "shaders/transparent_fragment.glsl").c_str()
     );
     Shader outlineModelShader(
-    (std::string(PROJECT_ROOT) + "shaders/outline_model_vert.glsl").c_str(),
-    (std::string(PROJECT_ROOT) + "shaders/outline_frag.glsl").c_str()
-);
+        (std::string(PROJECT_ROOT) + "shaders/outline_model_vert.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/outline_frag.glsl").c_str()
+    );
     Shader outlineCubeShader(
         (std::string(PROJECT_ROOT) + "shaders/outline_cube_vert.glsl").c_str(),
         (std::string(PROJECT_ROOT) + "shaders/outline_frag.glsl").c_str()
     );
+    // NEW: HDR Shader
+    Shader hdrShader(
+        (std::string(PROJECT_ROOT) + "shaders/hdr_vertex.glsl").c_str(),
+        (std::string(PROJECT_ROOT) + "shaders/hdr_fragment.glsl").c_str()
+    );
+
 
     Model myModel(std::string(PROJECT_ROOT) + "assets/lpshead/head.OBJ");
     Model lightSphere(std::string(PROJECT_ROOT) + "assets/sphere.obj");
 
+    // --- Cube Setup ---
     unsigned int cubeVAO, cubeVBO, instanceVBO;
     glGenVertexArrays(1,&cubeVAO);
     glGenBuffers(1,&cubeVBO);
@@ -220,13 +212,13 @@ int main() {
     glVertexAttribPointer(3,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),(void*)0);
     glEnableVertexAttribArray(3);
     glVertexAttribDivisor(3,1);
-
     glBindBuffer(GL_ARRAY_BUFFER,0);
     glBindVertexArray(0);
 
     unsigned int cubeTex = loadTexture((std::string(PROJECT_ROOT) + "assets/dizhak(1)(1).jpg").c_str());
     unsigned int floorTex = loadTexture((std::string(PROJECT_ROOT) + "assets/floor.jpg").c_str());
 
+    // --- Floor Setup ---
     float floorVertices[] = {
         -500.0f, 0.0f, -500.0f,
          500.0f, 0.0f, -500.0f,
@@ -245,6 +237,7 @@ int main() {
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
+    // --- Transparent Setup ---
     float transparentVertices[] = {
         -0.5f, 0.0f, 0.0f,  0.0f,0.0f,
          0.5f, 0.0f, 0.0f,  1.0f,0.0f,
@@ -270,6 +263,7 @@ int main() {
     transparentMeshes.push_back({ glm::vec3( 2.5f, 0.0f, -1.0f), glm::vec3(2.0f, 2.5f, 1.0f) });
     transparentMeshes.push_back({ glm::vec3( 0.0f, 0.0f,  3.5f), glm::vec3(3.0f, 2.0f, 1.0f) });
 
+    // --- Light Setup ---
     glm::vec3 dirLightDir = glm::normalize(glm::vec3(-0.2f,-1.0f,-0.3f));
     glm::vec3 dirLightCol = glm::vec3(1.0f,0.98f,0.9f);
 
@@ -287,6 +281,7 @@ int main() {
     float cubeScale = 0.25f;
     const float lightMarkerScale = 0.02f;
 
+    // --- Shadow Map FBO ---
     const unsigned int SHADOW_WIDTH = 2048;
     const unsigned int SHADOW_HEIGHT = 2048;
     unsigned int depthMapFBO, depthMap;
@@ -308,6 +303,33 @@ int main() {
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // --- HDR FBO Setup (New) ---
+    unsigned int hdrFBO;
+    glGenFramebuffers(1, &hdrFBO);
+    unsigned int colorBuffer;
+    glGenTextures(1, &colorBuffer);
+    glBindTexture(GL_TEXTURE_2D, colorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    unsigned int rboDepth;
+    glGenRenderbuffers(1, &rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // --- Shader Configs ---
+    hdrShader.use();
+    hdrShader.setInt("hdrBuffer", 0);
 
     bool usePCF = true;
     bool useComparisonSampler = true;
@@ -386,6 +408,7 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // 1. Render depth of scene to texture (from light's perspective)
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         glm::mat4 proj = glm::perspective(glm::radians(45.0f),
                                           (float)SCR_WIDTH/(float)SCR_HEIGHT,
@@ -414,10 +437,8 @@ int main() {
         glViewport(0,0,SHADOW_WIDTH,SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
-
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
-
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(2.0f, 4.0f);
 
@@ -428,7 +449,6 @@ int main() {
             glm::mat4 M(1.0f);
             M = glm::scale(M, glm::vec3(7.0f));
             M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
-            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
             shadowGeneric.setMat4("model", M);
             myModel.Draw(shadowGeneric);
         }
@@ -452,6 +472,8 @@ int main() {
         glDisable(GL_CULL_FACE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+        // 2. Render scene to floating point framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
         glViewport(0,0,SCR_WIDTH,SCR_HEIGHT);
         glClearColor(0.1f,0.15f,0.2f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -461,12 +483,12 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, depthMap);
         glStencilFunc(GL_ALWAYS, 1, 0xFF);
         glStencilMask(0xFF);
+
         setLights(litModel, view, proj, lightSpaceMatrix, 1.0f);
         {
             glm::mat4 M(1.0f);
             M = glm::scale(M, glm::vec3(7.0f));
             M = glm::translate(M, glm::vec3(0.0f,0.4f,0.0f));
-            //M = glm::rotate(M, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
             litModel.setMat4("model", M);
             myModel.Draw(litModel);
         }
@@ -479,9 +501,10 @@ int main() {
         glBindVertexArray(cubeVAO);
         glDrawArraysInstanced(GL_TRIANGLES, 0, 36, NUM_CUBES);
         glBindVertexArray(0);
+
         if (enableOutline) {
             glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-            glStencilMask(0x00); // Disable writing to stencil
+            glStencilMask(0x00);
             glEnable(GL_DEPTH_TEST);
             glEnable(GL_CULL_FACE);
             glCullFace(GL_FRONT);
@@ -567,12 +590,27 @@ int main() {
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
         glBindVertexArray(0);
-
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
         glEnable(GL_CULL_FACE);
 
-        ImGui::Begin("Shadow Settings");
+        // 3. Render Floating Point Color Buffer to Screen Quad (Tone Mapping + Gamma)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        hdrShader.use();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        hdrShader.setBool("hdr", hdr);
+        hdrShader.setFloat("exposure", exposure);
+        renderQuad();
+
+        // 4. Render ImGui
+        ImGui::Begin("Settings");
+        ImGui::Text("HDR Controls");
+        ImGui::Checkbox("Enable Tone Mapping", &hdr);
+        ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f);
+        ImGui::Separator();
         ImGui::Checkbox("Enable Cell Shading", &useCellShading);
         ImGui::Checkbox("Enable Outline", &enableOutline);
         ImGui::SliderFloat("Outline Width", &outlineWidth, 0.001f, 0.1f);
@@ -611,6 +649,8 @@ int main() {
     glDeleteBuffers(1,&transparentVBO);
     glDeleteFramebuffers(1, &depthMapFBO);
     glDeleteTextures(1, &depthMap);
+    glDeleteFramebuffers(1, &hdrFBO);
+    glDeleteTextures(1, &colorBuffer);
 
     glfwTerminate();
     return 0;
@@ -691,4 +731,55 @@ void processInput(GLFWwindow* window) {
         cameraPos += glm::vec3(0.0f,speed,0.0f);
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS)
         cameraPos -= glm::vec3(0.0f,speed,0.0f);
+}
+
+unsigned int loadTexture(const char* path) {
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    stbi_set_flip_vertically_on_load(true);
+    int width, height, nrChannels;
+    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+    if (data) {
+        GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else {
+        std::cerr << "Failed to load texture: " << path << std::endl;
+    }
+    stbi_image_free(data);
+    return textureID;
+}
+
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+    if (quadVAO == 0)
+    {
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
 }
