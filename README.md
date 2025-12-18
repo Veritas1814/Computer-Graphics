@@ -71,7 +71,16 @@ Added sliders to setup directional light for better use\
 #### Basic features
 Added Exposure Tone Mapping algorithm to map HDR values to LDR screen output.\
 Added Gamma Correction (sRGB) in the final post-processing stage.\
-Added ImGui to turn on/off HDR
+Added ImGui to turn on/off HDR\
+- Added Material Inputs: the engine supports the Metal/Roughness:
+    - Albedo: Base color (linearized).
+    - Normal: High-frequency surface detail.
+    - Metallic: Distinguishes between non-metal and metal surfaces.
+    - Roughness: Determines smooth vs rough reflections.
+
+Added Normal Mapping.\
+Added Procedural Geometry(For sphere).\
+Added the ability to switch shading models via ImGui.
 
 #### Comparison
 I did compared without toon shadowing, you can see the change better without it\
@@ -84,8 +93,25 @@ High intensity lights cause color values to exceed 1.0, which are clamped to whi
 High intensity values are compressed smoothly into the visible range. Details in bright spots are preserved, and lighting looks more natural.
 ![With Tone Mapping](assets/forReadme/HDR.png)
 
-#### Additional Features
+**PBR**\
+I have no idea what is that dark thing, it is not acne
+![PBR](assets/forReadme/PBR.png)
 
+**Blinn-Phong**\
+![Blinn-Phong](assets/forReadme/Blin.png)
+
+**Emissive**\
+I have no idea what that rectangle is
+![Emissive](assets/forReadme/Emisive.png)
+**No Normal Mapping** \
+The sphere looks like a smooth ball with a flat texture pasted on it.\
+![No Normal Mapping](assets/forReadme/Nonormal.png)
+
+**With Normal Mapping** \
+The rust appears to eat into the metal, and the surface reacts to light direction with self-shadowing.\
+![With Normal Mapping](assets/forReadme/Normal.png)
+#### Additional Features
+Redone sphere rendering for the new model on which I tested PBR
 ## Project
 
 #### Basic features
