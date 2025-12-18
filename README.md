@@ -111,7 +111,14 @@ The sphere looks like a smooth ball with a flat texture pasted on it.\
 The rust appears to eat into the metal, and the surface reacts to light direction with self-shadowing.\
 ![With Normal Mapping](assets/forReadme/Normal.png)
 #### Additional Features
-Redone sphere rendering for the new model on which I tested PBR
+Redone sphere rendering for the new model on which I tested PBR\
+Added a menu to imgui to pick the HDR tonemapping algorithm and add 2 more algorithms to pick from (Reinhard or ACES)\
+No HDR:\
+![No HDR](assets/forReadme/NoHDR.png)
+Reinhard:\
+![Reinhard](assets/forReadme/Reinhard.png)
+ACES:\
+![ACES](assets/forReadme/ACES.png)
 ## Project
 
 #### Basic features

@@ -65,6 +65,7 @@ bool enableSpotLight   = false;
 // HDR Settings
 bool hdr = true;
 float exposure = 1.0f;
+int toneMappingMode = 1;
 
 // PBR Settings
 int currentShadingMode = MODE_PBR;
@@ -704,8 +705,11 @@ int main() {
         hdrShader.use();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, colorBuffer);
+
         hdrShader.setBool("hdr", hdr);
+        hdrShader.setInt("toneMappingMode", toneMappingMode);
         hdrShader.setFloat("exposure", exposure);
+
         renderQuad();
 
         // IMGUI
@@ -718,8 +722,17 @@ int main() {
         ImGui::Separator();
 
         ImGui::Text("HDR Controls");
-        ImGui::Checkbox("Enable HDR Tone Mapping", &hdr);
-        ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f);
+        ImGui::Checkbox("Enable HDR Tone Mapping", &hdr); // Now this works!
+
+        // Only show these settings if HDR is enabled
+        if (hdr) {
+            ImGui::Text("Algorithm");
+            ImGui::RadioButton("Reinhard", &toneMappingMode, 0);
+            ImGui::RadioButton("Filmic (ACES)", &toneMappingMode, 1);
+
+            // We still keep the slider to control brightness intensity
+            ImGui::SliderFloat("Exposure / Brightness", &exposure, 0.1f, 5.0f);
+        }
         ImGui::Separator();
 
         ImGui::Text("PBR Object");
